@@ -1,4 +1,9 @@
 import os
+
+import smtplib
+from email.message import EmailMessage
+from fastapi import HTTPException
+
 from datetime import datetime
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -24,6 +29,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class BookingRequest(BaseModel):
+    name: str
+    email_or_whatsapp: str
+    dob: str | None = None
+    time: str | None = None
+    place: str | None = None
+    session_topic: str | None = None
+    preferred_date_time: str | None = None
+    intention: str | None = None
 
 
 class LiteReadingRequest(BaseModel):
@@ -157,3 +172,68 @@ Formatting rules:
         "ascendant": chart["ascendant"],
         "detected_yogas_count": len(detected_yogas)
     }
+
+@app.post("/booking-request")
+def booking_request(request: BookingRequest):
+    gmail_user = os.getenv("GMAIL_USER")
+    gmail_app_password = os.getenv("GMAIL_APP_PASSWORD")
+    receiver_email = os.getenv("BOOKING_RECEIVER_EMAIL", gmail_user)
+
+    if not gmail_user or not gmail_app_password or not receiver_email:
+        raise HTTPException(
+            status_code=500,
+            detail="Email service is not configured."
+        )
+
+    subject = f"New Astrea Booking Request from {request.name}"
+
+    body = f"""
+New consultation booking request received from the Astrea website.
+
+Name:
+{request.name}
+
+Email or WhatsApp:
+{request.email_or_whatsapp}
+
+Date of Birth:
+{request.dob or "Not provided"}
+
+Time of Birth:
+{request.time or "Not provided"}
+
+Place of Birth:
+{request.place or "Not provided"}
+
+Session Topic:
+{request.session_topic or "Not provided"}
+
+Preferred Date/Time:
+{request.preferred_date_time or "Not provided"}
+
+Question / Intention:
+{request.intention or "Not provided"}
+"""
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = gmail_user
+    msg["To"] = receiver_email
+    msg["Reply-To"] = request.email_or_whatsapp
+    msg.set_content(body)
+
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(gmail_user, gmail_app_password)
+            smtp.send_message(msg)
+
+        return {
+            "status": "success",
+            "message": "Your consultation request has been received. Priyamvada will get back to you soon."
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not send booking email: {str(e)}"
+        )
