@@ -212,7 +212,7 @@ Time of Birth:
 Place of Birth:
 {request.place or "Not provided"}
 
-Session Topic:
+Area of Guidance:
 {request.session_topic or "Not provided"}
 
 Preferred Date/Time:
