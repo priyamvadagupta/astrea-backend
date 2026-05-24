@@ -71,6 +71,15 @@ def lite_reading(request: LiteReadingRequest):
     aspect_context = build_house_analysis_context(chart)
     detected_yogas = detect_yogas(chart)
 
+    # Transit and timing analysis
+    try:
+        transit_analysis = analyze_transits_for_native(chart)
+        timing_windows = create_timing_windows(transit_analysis)
+    except Exception as e:
+        print(f"Transit/timing analysis skipped due to error: {e}")
+        transit_analysis = []
+        timing_windows = []
+
     rag_query = f"""
     User question:
     {request.question}
@@ -111,6 +120,12 @@ ASPECT CONTEXT:
 
 DETECTED YOGAS:
 {detected_yogas[:5]}
+
+Transit analysis:
+{transit_analysis}
+
+Timing windows:
+{timing_windows}
 
 RETRIEVED KNOWLEDGE:
 {knowledge}
