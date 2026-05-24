@@ -224,7 +224,7 @@ Question / Intention:
 
     try:
         resend.Emails.send({
-            "from": "Astrea <onboarding@resend.dev>",
+            "from": "Astrea <bookings@guidancebystars.com>",
             "to": [receiver_email],
             "subject": subject,
             "text": body,
