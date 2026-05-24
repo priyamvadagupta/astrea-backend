@@ -125,6 +125,14 @@ Rules:
 - Do not use bullet symbols.
 - Use clean section titles in plain text.
 - Keep the response elegant and readable for a website visitor.
+Formatting rules:
+- Do not use Markdown.
+- Do not use ### headings.
+- Do not use asterisks.
+- Do not use bold formatting.
+- Do not use bullet symbols.
+- Use clean plain text section titles only.
+- Keep paragraphs short and website-friendly.
 """
 
     response = client.chat.completions.create(
