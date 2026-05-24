@@ -4,6 +4,9 @@ import smtplib
 from email.message import EmailMessage
 from fastapi import HTTPException
 
+import resend
+from fastapi import HTTPException
+
 from datetime import datetime
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -175,15 +178,19 @@ Formatting rules:
 
 @app.post("/booking-request")
 def booking_request(request: BookingRequest):
-    gmail_user = os.getenv("GMAIL_USER")
-    gmail_app_password = os.getenv("GMAIL_APP_PASSWORD")
-    receiver_email = os.getenv("BOOKING_RECEIVER_EMAIL", gmail_user)
+    resend_api_key = os.getenv("RESEND_API_KEY")
+    receiver_email = os.getenv(
+        "BOOKING_RECEIVER_EMAIL",
+        "priyamvada.gupta@guidancebystars.com"
+    )
 
-    if not gmail_user or not gmail_app_password or not receiver_email:
+    if not resend_api_key:
         raise HTTPException(
             status_code=500,
-            detail="Email service is not configured."
+            detail="Email service is not configured. Missing RESEND_API_KEY."
         )
+
+    resend.api_key = resend_api_key
 
     subject = f"New Astrea Booking Request from {request.name}"
 
@@ -215,17 +222,14 @@ Question / Intention:
 {request.intention or "Not provided"}
 """
 
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = gmail_user
-    msg["To"] = receiver_email
-    msg["Reply-To"] = request.email_or_whatsapp
-    msg.set_content(body)
-
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-            smtp.login(gmail_user, gmail_app_password)
-            smtp.send_message(msg)
+        resend.Emails.send({
+            "from": "Astrea <onboarding@resend.dev>",
+            "to": [receiver_email],
+            "subject": subject,
+            "text": body,
+            "reply_to": request.email_or_whatsapp
+        })
 
         return {
             "status": "success",
