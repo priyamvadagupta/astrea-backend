@@ -19,6 +19,8 @@ from planet_strength_engine import enrich_planet_conditions
 from aspect_engine import build_house_analysis_context
 from yoga_engine import detect_yogas
 from rag_engine import retrieve_knowledge
+from transit_engine import analyze_transits_for_native
+from timing_engine import create_timing_windows
 
 load_dotenv()
 
@@ -173,7 +175,9 @@ Formatting rules:
     return {
         "answer": answer,
         "ascendant": chart["ascendant"],
-        "detected_yogas_count": len(detected_yogas)
+        "detected_yogas_count": len(detected_yogas),
+        "transit_analysis": transit_analysis,
+        "timing_windows": timing_windows
     }
 
 @app.post("/booking-request")
