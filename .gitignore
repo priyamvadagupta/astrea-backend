@@ -1,0 +1,23 @@
+# environment and secrets
+.env
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Mac files
+.DS_Store
+
+# local databases and private data
+vector_db/
+data/
+
+# generated outputs
+*.pdf
+*.png
+*.jpg
+*.jpeg
+
+# temporary files
+*.log
