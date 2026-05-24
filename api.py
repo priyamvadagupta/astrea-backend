@@ -119,6 +119,12 @@ Rules:
 - Do not show raw calculations.
 - Do not be scary or fatalistic.
 - Keep it warm, wise and premium.
+- Do not use Markdown.
+- Do not use ### headings.
+- Do not use asterisks.
+- Do not use bullet symbols.
+- Use clean section titles in plain text.
+- Keep the response elegant and readable for a website visitor.
 """
 
     response = client.chat.completions.create(
