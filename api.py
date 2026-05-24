@@ -215,7 +215,7 @@ Place of Birth:
 Area of Guidance:
 {request.session_topic or "Not provided"}
 
-Preferred Date/Time:
+Preferred Weekend Slot:
 {request.preferred_date_time or "Not provided"}
 
 Question / Intention:
