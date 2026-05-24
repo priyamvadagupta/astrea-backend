@@ -15,4 +15,5 @@ reportlab
 matplotlib
 geopy
 gunicorn
+resend
 
