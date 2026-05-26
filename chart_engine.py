@@ -1,6 +1,7 @@
 import swisseph as swe
 from datetime import datetime
 import pytz
+from birth_time_resolver import resolve_birth_datetime
 
 SIGNS = [
     "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
@@ -28,21 +29,17 @@ def get_house_from_lagna(planet_sign_index, lagna_sign_index):
     return ((planet_sign_index - lagna_sign_index) % 12) + 1
 
 def calculate_chart(dob, birth_time, place):
+    birth_info = resolve_birth_datetime(dob, birth_time, place)
 
-    # Temporary: Delhi only
-    lat = 28.6139
-    lon = 77.2090
-    timezone = pytz.timezone("Asia/Kolkata")
-
-    local_dt = datetime.combine(dob, birth_time)
-    local_dt = timezone.localize(local_dt)
-    utc_dt = local_dt.astimezone(pytz.utc)
+    utc_dt = birth_info["utc_datetime"]
+    lat = birth_info["latitude"]
+    lon = birth_info["longitude"]
 
     jd = swe.julday(
         utc_dt.year,
         utc_dt.month,
         utc_dt.day,
-        utc_dt.hour + utc_dt.minute / 60
+        utc_dt.hour + utc_dt.minute / 60 + utc_dt.second / 3600
     )
 
     # Lahiri ayanamsa
@@ -113,5 +110,15 @@ def calculate_chart(dob, birth_time, place):
         "ascendant": lagna_sign,
         "asc_degree": round(sidereal_asc, 2),
         "planets": planets,
-        "house_chart": house_chart
+        "house_chart": house_chart,
+        "birth_time_info": {
+            "place": birth_info["place"],
+            "latitude": birth_info["latitude"],
+            "longitude": birth_info["longitude"],
+            "timezone_name": birth_info["timezone_name"],
+            "local_datetime": str(birth_info["local_datetime"]),
+            "utc_datetime": str(birth_info["utc_datetime"]),
+            "utc_offset_hours": birth_info["utc_offset_hours"],
+            "dst_active": birth_info["dst_active"]
+        }
     }
