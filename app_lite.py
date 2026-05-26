@@ -1,107 +1,103 @@
+import streamlit as st
 import os
-
-import smtplib
-from email.message import EmailMessage
-from fastapi import HTTPException
-
-import resend
-from fastapi import HTTPException
-
-from datetime import datetime
 from dotenv import load_dotenv
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 from openai import OpenAI
+from datetime import date, datetime
 
 from chart_engine import calculate_chart
 from planet_strength_engine import enrich_planet_conditions
 from aspect_engine import build_house_analysis_context
-from yoga_engine import detect_yogas
 from rag_engine import retrieve_knowledge
-from transit_engine import analyze_transits_for_native
-from timing_engine import create_timing_windows
+from yoga_engine import detect_yogas
+from house_significations import HOUSE_SIGNIFICATIONS
+
 
 load_dotenv()
+api_key = os.getenv("OPENAI_API_KEY")
 
-app = FastAPI()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+st.set_page_config(page_title="Astrea Lite", layout="centered")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # later replace with your Lovable domain
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+st.title("Astrea 🔮")
+st.subheader("Get a glimpse into your birth chart")
+st.write(
+    "Enter your birth details and ask one question. "
+    "This gives you a short, intuitive preview of your chart."
 )
 
-class BookingRequest(BaseModel):
-    name: str
-    email_or_whatsapp: str
-    dob: str | None = None
-    time: str | None = None
-    place: str | None = None
-    session_topic: str | None = None
-    preferred_date_time: str | None = None
-    intention: str | None = None
+dob = st.date_input(
+    "Date of Birth",
+    value=date(1988, 1, 5),
+    min_value=date(1800, 1, 1),
+    max_value=date(2100, 12, 31),
+    format="YYYY/MM/DD"
+)
 
+time_str = st.text_input("Time of Birth (24-hour format)", "22:33")
+st.caption("Example: 22:33 or 05:15")
 
-class LiteReadingRequest(BaseModel):
-    name: str | None = None
-    email: str | None = None
-    dob: str
-    time: str
-    place: str
-    question: str
+valid_time = None
+try:
+    valid_time = datetime.strptime(time_str, "%H:%M").time()
+except ValueError:
+    st.error("Please enter time in HH:MM 24-hour format.")
 
+place = st.text_input("Place of Birth", "Delhi, India")
 
-@app.get("/")
-def home():
-    return {"status": "Astrea API is running"}
+question = st.text_area(
+    "What would you like to understand?",
+    "What is the main theme of my chart?",
+    key="visitor_question"
+)
 
+if st.button("Reveal My Chart Insight"):
 
-@app.post("/lite-reading")
-def lite_reading(request: LiteReadingRequest):
-    dob_obj = datetime.strptime(request.dob, "%Y-%m-%d").date()
-    time_obj = datetime.strptime(request.time, "%H:%M").time()
+    if valid_time is None:
+        st.stop()
 
-    chart = calculate_chart(dob_obj, time_obj, request.place)
-    chart = enrich_planet_conditions(chart)
+    if not api_key:
+        st.error("OpenAI API key not found. Please check your .env file.")
+        st.stop()
 
-    aspect_context = build_house_analysis_context(chart)
-    detected_yogas = detect_yogas(chart)
+    client = OpenAI(api_key=api_key)
 
-    # Transit and timing analysis
-    try:
+    with st.spinner("Reading your chart..."):
+        chart = calculate_chart(dob, valid_time, place)
+        chart = enrich_planet_conditions(chart)
+        aspect_context = build_house_analysis_context(chart)
+        detected_yogas = detect_yogas(chart)
         transit_analysis = analyze_transits_for_native(chart)
         timing_windows = create_timing_windows(transit_analysis)
-    except Exception as e:
-        print(f"Transit/timing analysis skipped due to error: {e}")
-        transit_analysis = []
-        timing_windows = []
 
-    rag_query = f"""
+    # Keep RAG query short and focused for visitor version
+    lite_rag_query = f"""
     User question:
-    {request.question}
+    {question}
 
     Ascendant:
-    {chart["ascendant"]}
+    {chart['ascendant']}
 
-    Planet placements:
-    {chart["planets"]}
+    Planetary placements:
+    {chart['planets']}
 
     Detected yogas:
     {detected_yogas[:5]}
 
+    TRANSIT_ANALYSIS:
+    {transit_analysis}
+
+    TIMING_WINDOWS:
+    {timing_windows}
+
     Retrieve concise Vedic astrology rules for:
     - ascendant interpretation
-    - planet in house interpretation
+    - key planet in house interpretation
     - Rahu Ketu axis if relevant
-    - yogas if relevant
-    - direct answer to the user's question
+    - strongest yogas if relevant
+    - direct answer to user question
     """
 
-    knowledge, rag_sources = retrieve_knowledge(rag_query, n_results=5)
+    with st.spinner("Finding relevant astrology principles..."):
+        knowledge, rag_sources = retrieve_knowledge(lite_rag_query, n_results=5)
 
     prompt = f"""
 You are Priyamvada's visitor-facing Vedic astrology assistant.
@@ -329,93 +325,32 @@ RULES:
 - Keep paragraphs short and website-friendly.
 """
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": "You write short, engaging Vedic astrology preview readings for website visitors."
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        temperature=0.4
-    )
+    with st.spinner("Preparing your insight..."):
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You write short, engaging Vedic astrology preview readings for website visitors."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.4
+        )
 
     answer = response.choices[0].message.content
 
-    return {
-        "answer": answer,
-        "ascendant": chart["ascendant"],
-        "detected_yogas_count": len(detected_yogas),
-        "transit_analysis": transit_analysis,
-        "timing_windows": timing_windows
-    }
+    st.subheader("Your Astrea Preview")
+    st.write(answer)
 
-@app.post("/booking-request")
-def booking_request(request: BookingRequest):
-    resend_api_key = os.getenv("RESEND_API_KEY")
-    receiver_email = os.getenv(
-        "BOOKING_RECEIVER_EMAIL",
-        "priyamvada.gupta@guidancebystars.com"
+    st.divider()
+
+    st.success("Want a deeper reading with timing, yogas, dashas and remedies? Book a personal consultation.")
+
+    st.link_button(
+        "Book a Consultation",
+        "https://wa.me/919999999999"
     )
-
-    if not resend_api_key:
-        raise HTTPException(
-            status_code=500,
-            detail="Email service is not configured. Missing RESEND_API_KEY."
-        )
-
-    resend.api_key = resend_api_key
-
-    subject = f"New Astrea Booking Request from {request.name}"
-
-    body = f"""
-New consultation booking request received from the Astrea website.
-
-Name:
-{request.name}
-
-Email or WhatsApp:
-{request.email_or_whatsapp}
-
-Date of Birth:
-{request.dob or "Not provided"}
-
-Time of Birth:
-{request.time or "Not provided"}
-
-Place of Birth:
-{request.place or "Not provided"}
-
-Area of Guidance:
-{request.session_topic or "Not provided"}
-
-Preferred Weekend Slot:
-{request.preferred_date_time or "Not provided"}
-
-Question / Intention:
-{request.intention or "Not provided"}
-"""
-
-    try:
-        resend.Emails.send({
-            "from": "Astrea <bookings@guidancebystars.com>",
-            "to": [receiver_email],
-            "subject": subject,
-            "text": body,
-            "reply_to": request.email_or_whatsapp
-        })
-
-        return {
-            "status": "success",
-            "message": "Your consultation request has been received. Priyamvada will get back to you soon."
-        }
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Could not send booking email: {str(e)}"
-        )
