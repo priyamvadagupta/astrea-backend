@@ -16,4 +16,7 @@ matplotlib
 geopy
 gunicorn
 resend
+geopy
+timezonefinder
+tzdata
 
