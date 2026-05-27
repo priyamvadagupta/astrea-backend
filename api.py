@@ -3,6 +3,7 @@ import os
 import smtplib
 from email.message import EmailMessage
 from fastapi import HTTPException
+from typing import Optional
 
 import resend
 from fastapi import HTTPException
@@ -52,9 +53,9 @@ class LiteReadingRequest(BaseModel):
     dob: str
     time: str
     place: str
-    latitude: float | None = None
-    longitude: float | None = None
-    timezone: str | None = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    timezone: Optional[str] = None
     question: str
 
 
