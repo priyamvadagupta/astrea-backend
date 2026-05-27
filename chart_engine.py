@@ -28,8 +28,15 @@ def get_sign_index(degree):
 def get_house_from_lagna(planet_sign_index, lagna_sign_index):
     return ((planet_sign_index - lagna_sign_index) % 12) + 1
 
-def calculate_chart(dob, birth_time, place):
-    birth_info = resolve_birth_datetime(dob, birth_time, place)
+def calculate_chart(dob, birth_time, place, latitude=None, longitude=None, timezone=None):
+    birth_info = resolve_birth_datetime(
+        dob,
+        birth_time,
+        place,
+        latitude=latitude,
+        longitude=longitude,
+        timezone=timezone,
+    )
 
     utc_dt = birth_info["utc_datetime"]
     lat = birth_info["latitude"]

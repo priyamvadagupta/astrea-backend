@@ -52,6 +52,9 @@ class LiteReadingRequest(BaseModel):
     dob: str
     time: str
     place: str
+    latitude: float | None = None
+    longitude: float | None = None
+    timezone: str | None = None
     question: str
 
 
@@ -62,10 +65,20 @@ def home():
 
 @app.post("/lite-reading")
 def lite_reading(request: LiteReadingRequest):
-    dob_obj = datetime.strptime(request.dob, "%Y-%m-%d").date()
-    time_obj = datetime.strptime(request.time, "%H:%M").time()
+    try:
+        dob_obj = datetime.strptime(request.dob, "%Y-%m-%d").date()
+        time_obj = datetime.strptime(request.time, "%H:%M").time()
 
-    chart = calculate_chart(dob_obj, time_obj, request.place)
+        chart = calculate_chart(
+            dob_obj,
+            time_obj,
+            request.place,
+            latitude=request.latitude,
+            longitude=request.longitude,
+            timezone=request.timezone,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     chart = enrich_planet_conditions(chart)
 
     aspect_context = build_house_analysis_context(chart)

@@ -1,10 +1,24 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from geopy.geocoders import Nominatim
+from geopy.exc import (
+    GeocoderRateLimited,
+    GeocoderServiceError,
+    GeocoderTimedOut,
+    GeocoderUnavailable,
+    GeopyError,
+)
 from timezonefinder import TimezoneFinder
 
 
-def resolve_birth_datetime(dob, birth_time, place):
+_PLACE_RESOLUTION_CACHE: dict[str, tuple[float, float, str]] = {}
+
+
+def _normalize_place(place: str) -> str:
+    return " ".join((place or "").strip().lower().split())
+
+
+def resolve_birth_datetime(dob, birth_time, place, latitude=None, longitude=None, timezone=None):
     """
     Converts local birth date/time/place into:
     - latitude
@@ -19,28 +33,41 @@ def resolve_birth_datetime(dob, birth_time, place):
     place: string like "New York, United States" or "Delhi, India"
     """
 
-    geolocator = Nominatim(user_agent="astrea_birth_chart_app")
-    location = geolocator.geocode(place, timeout=10)
+    if latitude is not None and longitude is not None and timezone is not None:
+        resolved_latitude = float(latitude)
+        resolved_longitude = float(longitude)
+        timezone_name = str(timezone)
+    else:
+        normalized_place = _normalize_place(place)
+        cached = _PLACE_RESOLUTION_CACHE.get(normalized_place)
+        if cached is not None:
+            resolved_latitude, resolved_longitude, timezone_name = cached
+        else:
+            try:
+                geolocator = Nominatim(user_agent="astrea_birth_chart_app")
+                location = geolocator.geocode(place, timeout=10)
+            except (GeocoderRateLimited, GeocoderTimedOut, GeocoderUnavailable, GeocoderServiceError, GeopyError):
+                location = None
 
-    if location is None:
-        raise ValueError(
-            f"Could not find coordinates for place: {place}. "
-            "Please enter city and country clearly."
-        )
+            if location is None:
+                raise ValueError("Could not resolve this birth place. Please enter city, state, country.")
 
-    latitude = location.latitude
-    longitude = location.longitude
+            resolved_latitude = float(location.latitude)
+            resolved_longitude = float(location.longitude)
 
-    tf = TimezoneFinder()
-    timezone_name = tf.timezone_at(lat=latitude, lng=longitude)
+            tf = TimezoneFinder()
+            timezone_name = tf.timezone_at(lat=resolved_latitude, lng=resolved_longitude)
 
-    if timezone_name is None:
-        raise ValueError(
-            f"Could not determine timezone for place: {place}."
-        )
+            if timezone_name is None:
+                raise ValueError("Could not resolve this birth place. Please enter city, state, country.")
+
+            _PLACE_RESOLUTION_CACHE[normalized_place] = (resolved_latitude, resolved_longitude, timezone_name)
 
     local_naive_datetime = datetime.combine(dob, birth_time)
-    local_timezone = ZoneInfo(timezone_name)
+    try:
+        local_timezone = ZoneInfo(timezone_name)
+    except Exception as e:
+        raise ValueError("Could not resolve this birth place. Please enter city, state, country.") from e
 
     local_datetime = local_naive_datetime.replace(tzinfo=local_timezone)
     utc_datetime = local_datetime.astimezone(ZoneInfo("UTC"))
@@ -49,8 +76,8 @@ def resolve_birth_datetime(dob, birth_time, place):
 
     return {
         "place": place,
-        "latitude": latitude,
-        "longitude": longitude,
+        "latitude": resolved_latitude,
+        "longitude": resolved_longitude,
         "timezone_name": timezone_name,
         "local_datetime": local_datetime,
         "utc_datetime": utc_datetime,
